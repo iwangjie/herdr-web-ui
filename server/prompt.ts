@@ -970,7 +970,7 @@ async function readKnownPrompt(
     return { prompt: publicPrompt(parsed) };
   }
 
-  if (!["claude", "omp", "codex", "omo", "pi", "gjc", "hermes", "cmd", "opencode", ""].includes(agent)) return { prompt: null };
+  if (!["claude", "omp", "codex", "omo", "pi", "gjc", "hermes", "cmd", "opencode", "droid", ""].includes(agent)) return { prompt: null };
   const piTranscript = agent === "pi" ? await piTranscriptPath(paneId).catch(() => null) : null;
   // pi-ask's ask_user form, as the web UI's pi extension reports it: answered through pi-ask, never keys
   if (piTranscript && "path" in piTranscript) {
@@ -1864,6 +1864,17 @@ export async function handlePromptRequest(request: Request, url: URL, options: P
             return !!read && !read.inputUnverified && asks() && !request.signal.aborted && Date.now() < deadline
               && shown?.id === parsed.id && shown.piAskTyping === true && shown.selectedIndex === parsed.customMenuIndex;
           }
+          if (responder === "droid-ask") {
+            // The move onto droid's free-text row opens its editor: typing waits for that drawing.
+            while (asks() && !request.signal.aborted && Date.now() < deadline) {
+              const reading = readKnownPrompt(body.pane_id, pane, agent, options.codexHome, panes, options.openCodeStateDir);
+              const read = await Promise.race([reading, Bun.sleep(Math.max(0, deadline - Date.now())).then(() => null)]);
+              const shown = read?.prompt ? parsedByPublicPrompt.get(read.prompt) : null;
+              if (read && !read.inputUnverified && shown?.id === parsed.id && shown.droidAskTyping === true) return true;
+              await Bun.sleep(50);
+            }
+            return false;
+          }
           while (asks() && !request.signal.aborted && Date.now() < deadline) {
             const read = await Promise.race([
               paneRead({ paneId: body.pane_id, source: "detection" }),
@@ -1900,6 +1911,12 @@ export async function handlePromptRequest(request: Request, url: URL, options: P
             const move = step.keys?.every((key) => key === KEY.up || key === KEY.down || (sideways && (key === KEY.left || key === KEY.right))) ?? false;
             // the asking ended under the answer: no further key, whatever the screen shows
             if (!asks()) return promptChanged();
+            // droid's editor opens on the move onto its row, so the text waits for that drawing too
+            if (responder === "droid-ask" && step.text !== undefined && body.custom_text !== undefined) {
+              if (!(await customEditorReady(body.custom_text))) return promptChanged();
+            }
+            // droid is checked before its text, not after: a long draft wraps and its own card's
+            // options then read differently, while the open editor stays the same input
             if ((responder === "fallback-gjc-menu" || responder === "pi-ask-question" || responder === "pi-questionnaire-question") && body.custom_text !== undefined && committed) {
               if (!(await customEditorReady(customTyped ? body.custom_text.trim() : ""))) return promptChanged();
               if (step.text !== undefined) customTyped = true;

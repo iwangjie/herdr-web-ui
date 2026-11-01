@@ -34,6 +34,12 @@ describe("sidebarAgents", () => {
     expect(rows[0]!.agentLabel).toBe("reviewer");
   });
 
+  it("writes droid's brand with a capital D when herdr reports the bare kind", () => {
+    const droid = pane("droid", { agent: "droid" });
+    const rows = sidebarAgents(snapshot([droid], [agent(droid, { name: "droid" })]));
+    expect(rows[0]!.agentLabel).toBe("Droid");
+  });
+
   it("includes a recognized OmO pane before herdr registers it, without duplicates", () => {
     const omo = pane("omo", { agent: "omo", agent_status: "working", background_tasks: 2 });
     const codex = pane("codex", { agent: "codex" });

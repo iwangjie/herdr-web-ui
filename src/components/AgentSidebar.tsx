@@ -10,7 +10,7 @@ import { useT } from "../lib/i18n.ts";
 import { useAnnouncedText } from "../lib/useAnnouncedText.ts";
 import { agentRoster, type AgentRow } from "../lib/agentRoster.ts";
 import { currentPaneMutes, paneMuteKey, prunePaneMutes, setPaneMutes, subscribePaneMutes, togglePaneMute } from "../lib/paneMutes.ts";
-import { agentContext, agentTabName, paneMark } from "../lib/sidebarAgents.ts";
+import { agentContext, agentNameForKind, agentTabName, paneMark } from "../lib/sidebarAgents.ts";
 import { useSettings } from "../lib/settings.ts";
 import { useSidebarActivity } from "../lib/sidebarActivity.tsx";
 import { machineFilter } from "../lib/sidebarFilter.ts";
@@ -182,9 +182,9 @@ export function AgentSidebar({ machines, selectedMachineId, selectedPaneId, stat
     const { pane, workspace, tab, agent, agentLabel } = entry;
     const online = machine.state === "connected";
     const title = pane.label?.trim() || agent?.title?.trim() || pane.title?.trim() || displayPaneTitle(pane);
-    const name = agent?.name?.trim() || null;
+    const name = agentNameForKind(agent?.name, entry.canonicalAgent);
     // the name has its own place on the line: the label beside it says the kind instead
-    const kindLabel = name !== null && agentLabel === name ? entry.canonicalAgent ?? agent?.title?.trim() ?? null : agentLabel;
+    const kindLabel = name !== null && agentLabel === name ? agentNameForKind(entry.canonicalAgent, entry.canonicalAgent) ?? agent?.title?.trim() ?? null : agentLabel;
     const tabs = machine.snapshot?.tabs.filter((candidate) => candidate.workspace_id === workspace.workspace_id) ?? [];
     const mark = paneMark(entry);
     const markAgent = mark && hasAgentMark(mark) ? mark : null;

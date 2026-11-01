@@ -107,6 +107,7 @@ const TURN_MARK: Record<StreamSource, Buffer> = {
   "gjc-transcript": Buffer.from('"user"'),
   "pi-transcript": Buffer.from('"user"'),
   "cmd-transcript": Buffer.from('"user"'),
+  "droid-transcript": Buffer.from('"user"'),
 };
 
 /**
@@ -125,6 +126,14 @@ function opensTurn(source: StreamSource, line: string, blobs: string | null): bo
   if (source === "codex-transcript") return entry.type === "event_msg" && entry.payload?.type === "task_started";
   if (source === "muse-transcript") return musePrompt(entry as Record<string, unknown>) !== null;
   if (source === "letta-transcript") return lettaPrompt(entry as Record<string, unknown>) !== null;
+  // droid's conversation is made of `message` records: a prompt is a user one with text, and
+  // the records it hides from the person or writes for a hook open nothing
+  if (source === "droid-transcript") {
+    const message = piMessage(entry);
+    if (message?.role !== "user") return false;
+    if ((entry.message as { visibility?: unknown } | undefined)?.visibility !== undefined) return false;
+    return (message.content as { type?: unknown; text?: unknown }[]).some((part) => part.type === "text" && typeof part.text === "string" && part.text.trim().length > 0);
+  }
   if (source !== "claude-transcript") {
     const message = piMessage(entry);
     if (message?.role !== "user") return false;

@@ -42,6 +42,8 @@ const snapshot: Record<string, readonly [DialogReader["reread"], DialogReader["l
   "hermes-question": ["none", "none"],
   "hermes-input": ["none", "none"],
   "cmd-question": ["before-commit", "none"],
+  "droid-approval": ["none", "none"],
+  "droid-ask": ["none", "none"],
   "opencode-question": ["before-commit", "none"],
   "opencode-v1-question": ["none", "none"],
   "hermes-help": ["none", "none"],
@@ -79,7 +81,7 @@ test("keeps OmO cross-listing after each agent's own readers", () => {
 });
 
 test("keeps fallback readers last for known and unknown agents", () => {
-  for (const agent of ["claude", "codex", "omp", "omo", "pi", "hermes", "gjc", "opencode", "grok", "agy", "devin", "cmd", "", "unknown"]) {
+  for (const agent of ["claude", "codex", "omp", "omo", "pi", "hermes", "gjc", "opencode", "grok", "agy", "devin", "cmd", "droid", "", "unknown"]) {
     expect(readersFor(agent).slice(-3).map((reader) => reader.id)).toEqual(["fallback-menu", "fallback-gjc-menu", "fallback-keys"]);
   }
 });
@@ -89,6 +91,7 @@ const order: Record<string, readonly string[]> = {
   "": ["omo-model", "omo-question", "omo-typing", "omo-review", "omo-pending", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],
   claude: ["claude-goal", "claude-question", "claude-submit", "claude-approval", "claude-plan", "claude-confirm", "claude-model", "claude-effort", "claude-held", "omo-model", "omo-question", "omo-typing", "omo-review", "omo-pending", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],
   cmd: ["cmd-question", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],
+  droid: ["droid-ask", "droid-approval", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],
   codex: ["codex-menu", "codex-question", "codex-async-question", "codex-approval", "codex-model", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],
   hermes: ["hermes-question", "hermes-input", "hermes-status", "hermes-version", "hermes-profile", "hermes-reload-skills", "hermes-help", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],
   omo: ["omo-model", "omo-question", "omo-typing", "omo-review", "omo-pending", "fallback-menu", "fallback-gjc-menu", "fallback-keys"],

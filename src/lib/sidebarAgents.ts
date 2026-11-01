@@ -14,6 +14,15 @@ function nonblank(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
 
+/** Agent names written as a brand, where herdr's manifest names the bare kind ("droid"). */
+const BRAND_NAMES: Readonly<Record<string, string>> = { droid: "Droid" };
+
+/** A name herdr reports for a kind, in the agent's own capitalisation when it is just the kind. */
+export function agentNameForKind(name: string | null | undefined, kind: string | null | undefined): string | null {
+  const value = nonblank(name);
+  return value !== null && value === kind && kind !== null && Object.hasOwn(BRAND_NAMES, kind) ? BRAND_NAMES[kind]! : value;
+}
+
 /**
  * The API's live agent roster, joined to the pane that owns its current state. OmO is also
  * recognized by the bridge's process-tree lookup, before herdr necessarily lists it as an
@@ -48,8 +57,8 @@ export function sidebarAgents(snapshot: SessionSnapshot | null): SidebarAgent[] 
         tab: tab?.workspace_id === pane.workspace_id ? tab : null,
         agent,
         canonicalAgent,
-        agentLabel: nonblank(agent?.display_agent) ?? nonblank(agent?.name)
-          ?? nonblank(pane.display_agent) ?? canonicalAgent ?? nonblank(agent?.title),
+        agentLabel: agentNameForKind(nonblank(agent?.display_agent) ?? nonblank(agent?.name)
+          ?? nonblank(pane.display_agent) ?? canonicalAgent ?? nonblank(agent?.title), canonicalAgent),
       },
     });
   });

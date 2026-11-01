@@ -21,14 +21,15 @@ const CWD = WINDOWS ? "C:\\work\\project" : "/work/project";
 const ID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
 /** The folder each agent names after CWD, as the agent itself spells it. */
 const FOLDERS: Partial<Record<SessionHistoryAgent, string>> = WINDOWS
-  ? { claude: "C--work-project", pi: "--C--work-project--", omo: "--C--work-project--", omp: "--C--work-project--", gjc: "--C--work-project--", grok: "C%3A%5Cwork%5Cproject" }
-  : { claude: "-work-project", pi: "--work-project--", omo: "--work-project--", omp: "--work-project--", gjc: "--work-project--", cmd: "work-project", grok: "%2Fwork%2Fproject" };
+  ? { claude: "C--work-project", pi: "--C--work-project--", omo: "--C--work-project--", omp: "--C--work-project--", gjc: "--C--work-project--", grok: "C%3A%5Cwork%5Cproject", droid: "C--work-project" }
+  : { claude: "-work-project", pi: "--work-project--", omo: "--work-project--", omp: "--work-project--", gjc: "--work-project--", cmd: "work-project", grok: "%2Fwork%2Fproject", droid: "-work-project" };
 const EXPECTED: Record<SessionHistoryAgent, [string, string]> = {
   claude: [ID(2), ID(1)], codex: [ID(2), ID(1)], pi: [ID(2), ID(1)], omp: [ID(2), ID(1)], gjc: [ID(2), ID(1)], cmd: [ID(2), ID(1)],
   omo: [ID(2), ID(1)], grok: [ID(2), ID(1)], agy: [ID(2), ID(1)],
   opencode: ["ses_fixture0002", "ses_fixture0001"],
   hermes: ["20261002_090000_fx0002", "20261001_090000_fx0001"],
   devin: ["fixture-0002", "fixture-0001"],
+  droid: [ID(2), ID(1)],
 };
 
 const root = mkdtempSync(join(tmpdir(), "ovis-session-history-"));
@@ -51,7 +52,9 @@ function install(agent: SessionHistoryAgent, home: string): void {
     if (target.endsWith(".sql")) {
       const db = new Database(target.replace(/\.sql$/, ".db"), { create: true });
       // one transaction: a statement each would sync the disk each time, seconds on a loaded machine
-      db.transaction(() => db.exec(text.replaceAll(":cwd", sql(CWD)).replaceAll(":uris", sql(JSON.stringify([pathToFileURL(CWD).href])))))();
+      const folder = FOLDERS[agent];
+      const filled = text.replaceAll(":cwd", sql(CWD)).replaceAll(":uris", sql(JSON.stringify([pathToFileURL(CWD).href])));
+      db.transaction(() => db.exec(folder === undefined ? filled : filled.replaceAll(":folder", sql(folder))))();
       db.close();
       continue;
     }

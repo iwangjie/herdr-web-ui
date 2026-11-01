@@ -25,6 +25,7 @@ export const AGENT_LABELS: Record<string, string> = {
   grok: "Grok",
   agy: "Antigravity",
   devin: "Devin",
+  droid: "Droid",
   cmd: "Command Code",
   letta: "Letta Code",
   "dsh-tui": "DeepSeek Harness",

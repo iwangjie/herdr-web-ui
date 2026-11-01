@@ -117,7 +117,9 @@ type Responder =
   | "fallback-menu"
   | "fallback-gjc-menu"
   | "fallback-keys"
-  | "cmd-question";
+  | "cmd-question"
+  | "droid-approval"
+  | "droid-ask";
 
 export type ParsedPrompt = InteractivePrompt & {
   /** Exact contiguous result block, including its identifying header and completion footer. */
@@ -148,6 +150,8 @@ export type ParsedPrompt = InteractivePrompt & {
   piAskUser?: PiAskUserForm;
   /** Pi's custom row owns the inline editor, rather than only a selected menu row. */
   piAskTyping?: true;
+  /** droid's free-text row owns the inline editor, its footer naming submit rather than the list's keys. */
+  droidAskTyping?: true;
   /** Installed questionnaire editor contents; absent outside its guarded input mode. */
   piQuestionnaireInput?: string;
   piQuestionnaireInputRows?: string[];

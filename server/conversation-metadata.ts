@@ -150,6 +150,14 @@ export function parseConversationMetadata(text: string, source: ConversationResp
       if (model) metadata.model = model;
       // A new complete context without effort must not retain an older value.
       if (model || effort !== undefined) metadata.reasoning_effort = label(effort);
+    } else if (source === "droid-transcript") {
+      // droid names the model and the effort on each answer it keeps for the person
+      const message = record(entry.message);
+      if (entry.type === "message" && message.role === "assistant" && message.visibility === undefined) {
+        const model = label(message.modelId) ?? label(message.model);
+        if (model) metadata.model = model;
+        if (message.reasoningEffort !== undefined) metadata.reasoning_effort = label(message.reasoningEffort);
+      }
     } else if (source === "omp-transcript" || source === "omo-transcript" || source === "gjc-transcript" || source === "pi-transcript" || source === "cmd-transcript") {
       if (entry.type === "model_change") {
         // pi and omo name `provider` and `modelId`; omp names one `model`, "provider/id", where

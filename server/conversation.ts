@@ -55,6 +55,7 @@ import { ompBlobStore, ompPaneRoute, ompRouteOwns, ompRouteStore, ompRouteTransc
 import { forgetOpencodeRead, forgetOpencodeState, OPENCODE_IMAGE_REF, opencodeConversation, opencodeDatabasePath, opencodeImage, opencodeReadKey, opencodeSessionId, opencodeToolOutput } from "./opencode.ts";
 import { piTranscriptPath, unwrittenSession } from "./pi.ts";
 import { cmdTranscriptPath } from "./cmd.ts";
+import { droidMetadata, droidSettingsSignature, droidTranscriptImage, droidTranscriptPath, parseDroidTranscript } from "./droid.ts";
 import { defaultDevinDbPath, DevinHistoryUnavailable, devinConversation, forgetDevinState } from "./devin.ts";
 import { forgetGrokState, GROK_IMAGE_REF, grokImage, grokProjection, grokToolOutput, parseGrokTranscript, GrokUnavailable } from "./grok.ts";
 import { resolveGrokStore } from "./grok-store.ts";
@@ -696,6 +697,7 @@ function parseTurns(source: RecognizedConversation["source"], path: string, text
       throw error;
     }
   }
+  if (source === "droid-transcript") return parseDroidTranscript(text, Infinity);
   return source === "codex-transcript" ? parseCodexTranscript(text, Infinity)
     : source === "claude-transcript" ? parseClaudeTranscript(text, Infinity, { subagents: subagentsOnPage(path, text), noticed })
       : parseOmpTranscript(text, Infinity, ompReading(source, path, taskTitles));
@@ -706,7 +708,7 @@ function parseTurns(source: RecognizedConversation["source"], path: string, text
  * the same way but would carry image refs nothing answers, so they name none. gjc's tool parts carry
  * their call ids, which the chat matches gjc's rewrites by */
 function ompReading(source: RecognizedConversation["source"], path: string, taskTitles?: Map<string, string>) {
-  return { images: source === "pi-transcript" || source === "cmd-transcript" || source === "omp-transcript", blobs: source === "omp-transcript" ? ompBlobStore(path) : null, callIds: source === "gjc-transcript", taskTitles };
+  return { images: source === "pi-transcript" || source === "cmd-transcript" || source === "omp-transcript" || source === "droid-transcript", blobs: source === "omp-transcript" ? ompBlobStore(path) : null, callIds: source === "gjc-transcript", taskTitles };
 }
 
 /** The blob store of the omp transcript a stream reads (ompBlobStore), for its turn scan; null for any other agent. */
@@ -1536,6 +1538,17 @@ async function resolveTranscript(pane: HerdrPane, cwd: string, codexHome?: strin
       const resolved = await hermesTranscriptForPane(pane, cwd, hermesHome);
       return { source: "hermes-transcript", path: resolved.dbPath, sessionId: resolved.sessionId };
     }
+    // herdr names the droid session its switch-aware integration reports; no report, no conversation
+    if (agent === "droid") {
+      const report = pane.agent_session;
+      if (report == null || report.agent !== "droid" || report.kind !== "id" || report.source !== "herdr:droid"
+        || typeof report.value !== "string" || report.value.length === 0) {
+        throw new ConversationUnavailable("no_session_id");
+      }
+      const path = droidTranscriptPath(sessionCwd, report.value);
+      if (path === null) throw new ConversationUnavailable("no_session_path");
+      return { source: "droid-transcript", path };
+    }
     throw new ConversationUnavailable("no_recognized_transcript");
   } catch (error) {
     if (error instanceof AgyUnavailable) throw new ConversationUnavailable("transcript_missing");
@@ -2034,7 +2047,9 @@ function transcriptPageRead(source: StreamSource, path: string, page: Conversati
     : `${path}\0from:${page.from ?? ""}:${pagePrompts(page)}`;
   // the catalogs a pi window is read from are the pane's: another pane's answer is not this one's
   const catalogs = piAgentDir === undefined ? "" : `:${piAgentDir}`;
-  const signature = page.before !== undefined ? `${stream.id}${catalogs}` : `${stream.id}:${stream.length}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}${catalogs}`;
+  // droid's model and context come from its settings files, not from an appended transcript record
+  const settings = source === "droid-transcript" ? `:${droidSettingsSignature(path)}` : "";
+  const signature = page.before !== undefined ? `${stream.id}${catalogs}${settings}` : `${stream.id}:${stream.length}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}${catalogs}${settings}`;
   const cached = cache.get(key);
   // the answer is a function of the page asked for and the file's state, so they name it
   const version = answerVersion(key, signature);
@@ -2093,7 +2108,8 @@ function transcriptPageRead(source: StreamSource, path: string, page: Conversati
   // session shape while herdr may be calling that same pane `claude`. The page
   // bounds the turns, so none are cut: they must meet the next page exactly.
   const turns = live?.turns ?? parseTurns(source, path, text, undefined, undefined, start);
-  const metadata = live?.metadata ?? parseConversationMetadata(`${head}\n${text}`, source, undefined, piAgentDir);
+  let metadata = live?.metadata ?? parseConversationMetadata(`${head}\n${text}`, source, undefined, piAgentDir);
+  if (source === "droid-transcript") metadata = droidMetadata(path, metadata);
   // Record the stat from BEFORE the read: an append during parsing must cause
   // another read on the next poll, not permanently cache a torn tail.
   cache.delete(key);
@@ -2129,6 +2145,7 @@ export async function conversationImage(paneId: string, ref: string, codexHome?:
     return codexTranscriptImage(codexHistorySegments(resolved.path, resolved.codexHome ?? codexHome), ref, pane.cwd);
   }
   if (resolved.source === "pi-transcript" || resolved.source === "cmd-transcript") return piTranscriptImage(resolved.path, ref);
+  if (resolved.source === "droid-transcript") return droidTranscriptImage(resolved.path, ref);
   // the update log the pane's own Grok holds (resolveGrokStore), read only over its active history
   if (resolved.source === "grok-transcript") return grokImage(resolved.path, ref);
   // the session file the pane's own process holds (copilotTranscriptPath), opened pinned as the page reads it

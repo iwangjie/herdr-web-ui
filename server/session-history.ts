@@ -64,7 +64,7 @@ const TITLE_CHARS = 200;
 const MESSAGE_CHARS = 2000;
 const BUSY_TIMEOUT_MS = 250;
 
-export const SESSION_HISTORY_AGENTS = ["claude", "codex", "pi", "omp", "gjc", "cmd", "omo", "opencode", "hermes", "grok", "agy", "devin"] as const satisfies readonly SessionHistoryAgent[];
+export const SESSION_HISTORY_AGENTS = ["claude", "codex", "pi", "omp", "gjc", "cmd", "omo", "opencode", "hermes", "grok", "agy", "devin", "droid"] as const satisfies readonly SessionHistoryAgent[];
 
 export function isSessionHistoryAgent(value: string): value is SessionHistoryAgent {
   return (SESSION_HISTORY_AGENTS as readonly string[]).includes(value);
@@ -142,6 +142,8 @@ const RESUME: Record<SessionHistoryAgent, (id: string) => string[]> = {
   agy: (id) => ["agy", "--conversation", id],
   // server/conversation.ts:1455-1459 (devinSessionForPane reads `--resume <id>` / `--resume=<id>`)
   devin: (id) => ["devin", "--resume", id],
+  // droid 1.1.0 `--help`: "-r, --resume [sessionId] Resume a session by id or session link"
+  droid: (id) => ["droid", "--resume", id],
 };
 
 type Row = SessionHistoryRow;
@@ -1063,6 +1065,45 @@ function devinSessions(cwds: readonly string[], dbPath: string, budget: Budget):
 }
 
 /**
+ * Factory Droid: `~/.factory/cache/session-index/index.db` indexes each session's folder, title and
+ * event times; `project_key` names the transcript's folder under `sessions/`. Its title is the
+ * session's first prompt once droid has named it (droid rewrites "Start new chat").
+ */
+function droidSessions(cwds: readonly string[], home: string, budget: Budget, read: SessionHistoryOptions["readHead"]): Row[] {
+  const base = join(home, ".factory");
+  const dbPath = join(base, "cache", "session-index", "index.db");
+  const scan = scanOf(budget, base, read);
+  return withDatabase(budget, dirname(dbPath), dbPath, (db) => {
+    if (!tableExists(db, "sessions")) return [];
+    const columns = columnsOf(db, "sessions");
+    const spellings = spellingsOf(cwds);
+    const title = columns.has("title") ? `substr(title, 1, ${TITLE_CHARS * 4})` : "NULL";
+    const sessions = db.query<{ id: string; title: string | null; project: string | null; created: number | null; updated: number | null }, string[]>(
+      `SELECT session_id AS id, ${title} AS title, ${columns.has("project_key") ? "project_key" : "NULL"} AS project, first_event_at AS created, last_event_at AS updated
+       FROM sessions WHERE cwd IN (${placeholders(spellings)})${columns.has("archived_at") ? " AND archived_at IS NULL" : ""}
+         ${columns.has("tags") ? "AND coalesce(json_extract(tags, '$.exec'), 0) = 0 AND coalesce(json_extract(tags, '$.subagent'), 0) = 0" : ""}
+       ORDER BY last_event_at DESC LIMIT ${MAX_ROWS}`,
+    ).all(...spellings);
+    return sessions.map((session) => {
+      let firstMessage: string | null = null;
+      const file = scan === null || session.project === null ? null : scan.file(join(base, "sessions", session.project, `${session.id}.jsonl`));
+      for (const value of file === null ? [] : scan!.records(file)) {
+        if (value.type !== "message") continue;
+        const message = record(value.message);
+        if (message.role !== "user" || message.visibility !== undefined || message.hookEventName !== undefined) continue;
+        if ((firstMessage = textOf(message.content)) !== null) break;
+      }
+      return row("droid", session.id, {
+        title: session.title,
+        firstMessage,
+        startedAt: iso(session.created),
+        updatedAt: iso(session.updated) ?? new Date(0).toISOString(),
+      });
+    });
+  }) ?? [];
+}
+
+/**
  * Antigravity CLI: `~/.gemini/antigravity-cli/conversation_summaries.db` names each conversation's
  * workspace folders (`workspace_uris`, file URIs), and its first prompt is the first USER_INPUT step
  * of `brain/<id>/.system_generated/logs/transcript_full.jsonl`.
@@ -1151,6 +1192,7 @@ export function listSessions(agent: SessionHistoryAgent, cwd: string, options: S
       case "devin": return devinSessions(cwds, join(env["XDG_DATA_HOME"] || join(home, ".local", "share"), "devin", "cli", "sessions.db"), budget);
       case "grok": return grokSessions(cwds, home, env, budget, read);
       case "agy": return agySessions(cwds, home, budget, read);
+      case "droid": return droidSessions(cwds, home, budget, read);
     }
   })();
   const sorted = (rows: Row[]) => rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, MAX_ROWS);

@@ -279,6 +279,9 @@ export const APPROVED_COMMANDS: ReadonlySet<string> = new Set([
   "windows|iex (irm https://hermes-agent.nousresearch.com/install.ps1)",
   "macos|npm install -g @deepseek-ai/dsh @deepseek-harness-tui/dsh-tui",
   "linux|npm install -g @deepseek-ai/dsh @deepseek-harness-tui/dsh-tui",
+  "macos|curl -fsSL https://app.factory.ai/cli | sh",
+  "linux|curl -fsSL https://app.factory.ai/cli | sh",
+  "windows|irm https://app.factory.ai/cli/windows | iex",
 ]);
 
 /** An allowed address: HTTPS, a host, and a path on it, so a prefix can never stand for a whole host. */
@@ -745,6 +748,27 @@ const CATALOG_ENTRIES: readonly AgentCatalogEntry[] = [
       "Its installer for macOS and Linux puts ~/.opencode/bin first on PATH in your shell's startup file (~/.bashrc, ~/.zshrc): an opencode command of your own elsewhere (a wrapper in ~/.local/bin) is no longer the one that runs.",
     ],
     min_version: { version: "2.0.0", reason: "answering its questions from Chat" },
+  },
+  {
+    id: "droid",
+    name: "Factory Droid",
+    vendor: "Factory",
+    kind: "harness",
+    description: "Factory's terminal coding agent, with Droids, skills and tool hooks.",
+    install: {
+      macos: only(method("posix", "curl -fsSL https://app.factory.ai/cli | sh", CURL_SH)),
+      linux: only(method("posix", "curl -fsSL https://app.factory.ai/cli | sh", CURL_SH)),
+      windows: only(method("powershell", "irm https://app.factory.ai/cli/windows | iex", POWERSHELL)),
+    },
+    no_install: {},
+    url_prefixes: ["https://app.factory.ai/cli"],
+    packages: [],
+    sources: [source("https://docs.factory.ai/cli/getting-started/overview.md"), source("https://docs.factory.ai/droid-cli/cli-reference.md")],
+    // 1.1.0 prints the bare version; the installer puts the binary in ~/.local/bin
+    detect: { binaries: ["droid"], version_args: ["--version"], install_dirs: { macos: ["~/.local/bin"], linux: ["~/.local/bin"] } },
+    sign_in: { provider: null, command: null, in_agent: "/login", api_keys: [], required: true },
+    after_install: ["An interactive session that is not signed in shows Factory's device-login link; /login in the TUI opens it again."],
+    min_version: { version: "1.1.0", reason: "answering its permission prompt from Chat" },
   },
   {
     id: "devin",
